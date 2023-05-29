@@ -28,10 +28,34 @@ namespace fp
     const apply = 
     (f: Function, args: any[])
     : any => 
+        
         f(...args) ;
     
     export 
     const applieds = memoize(apply) ;
+    
+    
+    
+    export 
+    namespace Echoes
+    {
+        export 
+        const echoes =
+        <T = {[key: string]: any},> (waves: {[key: string]: (env: T) => any})
+        : T =>
+            Object.entries(waves).reduce
+            (
+                (envs, [fn, f]) => ({... envs, [fn]: f(envs)}) ,
+                {} as T
+            ) ;
+        
+        export 
+        const call = 
+        <T extends Record<K, (...args: any) => any>, K extends keyof T>
+        (obj: T, key: K): { [P in K]: ReturnType<T[P]>; }[K] =>
+            echoes<{[P in K]: ReturnType<T[P]>}>(obj)[key] ;
+        
+    } ;
     
     
     
@@ -43,7 +67,7 @@ namespace fp
         (
             private readonly value: T , 
             private readonly fns: Fn<any, any>[] = [] , 
-            private readonly piperun
+            private readonly piperunner
                 : <T>(funcs: Fn<any, any>[], v: T) => T = 
             memoize
             (
@@ -59,7 +83,7 @@ namespace fp
         ()
         : T => 
             
-            this.piperun(this.fns, this.value) ;
+            this.piperunner(this.fns, this.value) ;
         
         
         readonly then = 
@@ -75,7 +99,7 @@ namespace fp
         ()
         : Pipe<T> => 
             
-            new Pipe(this.runfn(), [], this.piperun) ;
+            new Pipe(this.runfn(), [], this.piperunner) ;
         
         
         readonly pipi = 
@@ -83,8 +107,8 @@ namespace fp
         (fn: Fn<T, R>)
         : Pipe<T> => 
         {
-            fn(this.runfn()) ;
-            return new Pipe(this.value, this.fns, this.piperun) ;
+            fn(this.runfn());
+            return new Pipe(this.value, this.fns, this.piperunner) ;
         } ;
         
         readonly pop = 
@@ -111,11 +135,11 @@ namespace fp
             ( function* ()
             : Generator<T> 
             {
-                let value = initialValue ;
+                let value = initialValue;
                 while (true) 
                 {
                     yield value ;
-                    value = f(value) ;
+                    value = f(value);
                 } ;
             } ) ;
         
@@ -128,13 +152,15 @@ namespace fp
             ( function* ()
             : Generator<R> 
             {
-                let value = initialValue ;
-                while (true) 
+                let value = initialValue;
+                let next: { mapper: R, iter: T } | undefined = f(value);
+                
+                while (!(next === undefined)) 
                 {
-                    const next = f(value) ;
-                    if (next === undefined) break ;
                     yield next.mapper ;
-                    value = next.iter ;
+                    
+                    value = next.iter;
+                    next = f(value);
                 } ;
             } ) ;
         
@@ -151,7 +177,7 @@ namespace fp
                 while (true) 
                 {
                     const { value, done } = iterator.next() ;
-                    if (done) break ;
+                    if (done) break;
                     yield f(value) ;
                 } ;
             } ).bind(this)) ;
@@ -169,7 +195,7 @@ namespace fp
                 while (true) 
                 {
                     const { value, done } = iterator.next() ;
-                    if (done) break ;
+                    if (done) break;
                     if (predicate(value)) yield value ;
                 }
             } ).bind(this)) ;
@@ -184,8 +210,8 @@ namespace fp
             while (true) 
             {
                 const { value, done } = iterator.next() ;
-                result.push(value) ;
-                if (done || predicate(value)) break ;
+                result.push(value);
+                if (done || predicate(value)) break;
             } ;
             return result ;
         } ;
@@ -194,8 +220,8 @@ namespace fp
         (n: number)
         : T[] => 
         {
-            let count = 1 ;
-            return this.takeUntil(() => !(count++ < n)) ;
+            let count = 1;
+            return this.takeUntil(() => !(count++ < n));
         } ;
     } ;
     
@@ -219,14 +245,14 @@ namespace fp
         <T,>(value: T)
         : TailCall<T> => 
             
-            new TailCall(true, value, () => { throw new Error("not implemented"); }) ;
+            new TailCall(true, value, () => { throw new Error("TailCall.done: not implemented"); }) ;
         
         
         static readonly call = 
         <T,>(nextCall: () => TailCall<T>)
         : TailCall<T> => 
             
-            new TailCall(false, null as any, nextCall);
+            new TailCall(false, null as any, nextCall) ;
         
         
         readonly invoke = 
@@ -245,17 +271,110 @@ namespace fp
 
 namespace Demos
 {
+    console.log("-------- --------");
+    
     
     namespace Memoizes
     {
-        export namespace recurs
+        export namespace treerec
         {
             export const fib = fp.memoize((n: number): number => (n <= 1 ? n : fib(n - 1) + fib(n - 2)) ) ;
         } ;
         
     } ;
-    console.log(Memoizes.recurs.fib(40) );
-    console.log(Memoizes.recurs.fib(40) );
+    console.log(Memoizes.treerec.fib(40) );
+    console.log(Memoizes.treerec.fib(40) );
+    
+    
+    
+    namespace Applies
+    {
+        export const simple = () =>
+        {
+            console.log(fp.apply((a: number) => a+12, [3]) );
+        } ;
+        
+        export const pipedsimple = () =>
+        {
+            new fp.Pipe(fp.apply((a: number, b: string) => b + (a*2), [3, "x"]) )
+                .then(x => console.log(x))
+                .run();
+        } ;
+    } ;
+    Applies.simple();
+    Applies.pipedsimple();
+    
+    namespace Appliedses
+    {
+        export namespace treerec
+        {
+            export const fiba = (n: number): number => (n <= 1 ? n : fp.applieds(fiba,[n - 1]) + fp.applieds(fiba,[n - 2]) ) ;
+            export const fib = (n: number): number => fp.applieds(fiba,[n]) ;
+        } ;
+    } ;
+    console.log(Appliedses.treerec.fiba(41) );
+    console.log(Appliedses.treerec.fib(41) );
+    
+    
+    
+    namespace Echoeses
+    {
+        export namespace simple
+        {
+            export const ffs =
+            {
+                f1: (env: { [key: string]: Function }) => 
+                    
+                    (n: number): number => 1 + n ,
+                
+                f2: (env: { [key: string]: Function }) => 
+                    
+                    (x: number): number => env.f1(x * 2) ,
+                
+            } ;
+        } ;
+        
+        export namespace more
+        {
+            export const xx =
+            {
+                x0: (env: { [key: string]: any }) => 
+                    
+                    1 ,
+                
+                f: (env: { [key: string]: any }) => 
+                    
+                    (s: string)
+                    : number => 
+                        s.length ,
+                
+                f2: (env: { [key: string]: any }) => 
+                    
+                    (s: string, n: number)
+                    : Promise<number> => 
+                        Promise.resolve(env.f(s) + n - env.x0) ,
+            } ;
+        } ;
+        
+        export const runs = () =>
+        {
+            console.log(fp.Echoes.echoes(Echoeses.simple.ffs).f2(3) ); // out: 7
+            
+            
+            fp.Echoes
+                .echoes<{f2: ReturnType<typeof Echoeses.more.xx.f2>}>(Echoeses.more.xx).f2('aa',3)
+                .then(r => console.log(r)); // out: 4
+            
+            fp.Echoes
+                .echoes(Echoeses.more.xx).f2('aaa',3)
+                .then( (r: number) => console.log(r) ); // out: 5
+            
+            fp.Echoes
+                .call(Echoeses.more.xx,'f2')('a',3)
+                .then(r => console.log(r)); // out: 3
+        } ;
+    } ;
+    Echoeses.runs();
     
     
     
@@ -288,24 +407,6 @@ namespace Demos
     
     
     
-    namespace Applies
-    {
-        export const simple = () =>
-        {
-            console.log(fp.apply((a: number) => a+12, [3]) );
-        } ;
-        
-        export const pipedsimple = () =>
-        {
-            new fp.Pipe(fp.apply((a: number, b: string) => b + (a*2), [3, "x"]) )
-                .then(x => console.log(x))
-                .run();
-        } ;
-    } ;
-    Applies.simple();
-    Applies.pipedsimple();
-    
-    
     
     namespace Streams
     {
@@ -331,14 +432,15 @@ namespace Demos
                 
                 fp.Stream
                     .iterate({x: 0, y: 0,z: 1}, ({ x, y, z }) => ({ x: x + 1, y: z, z: y + z }))
-                    .map(({ x, y, z }) => ({ x, y }))
-                    .filter(({ x, y }) => x % 2 === 1) ,
+                    .map(({ x, y, z }) => ({ x, y })) ,
             
         } ;
     } ;
-    console.log(Streams.unfolds.simple.take(7) );
-    console.log(Streams.unfolds.fibs.take(3) );
-    console.log(Streams.iterates.fibs.take(3) );
+    console.log(Streams.unfolds.simple.take(16) );
+    console.log(Streams.unfolds.fibs.take(4) );
+    console.log(Streams.iterates.fibs.take(4) );
+    console.log(Streams.unfolds.fibs.filter(({ x, y }) => x % 2 === 1).take(14) );
+    console.log(Streams.unfolds.fibs.take(14).filter(({ x, y }) => x % 2 === 1) );
     
     
     
@@ -373,7 +475,7 @@ namespace Demos
             } ;
         } ;
     } ;
-    console.log(Tailcalls.simplecases.rb(10000001,2).invoke() );
+    console.log(Tailcalls.simplecases.rb(1000001,2).invoke() );
     console.log(Tailcalls.morecases.factorial(5) );
     
     
