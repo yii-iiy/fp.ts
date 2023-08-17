@@ -161,7 +161,7 @@ const s = fp.Stream.unfold(0, x => x < 10 ? { mapper: x, iter: x + 1 } : undefin
 console.log(s.take(3)); // out: [0, 1, 2]
 ~~~
 
-#### fib
+#### fibonacci
 
 ~~~ ts
 // unfold
