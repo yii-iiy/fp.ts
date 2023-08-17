@@ -189,11 +189,61 @@ console.log(fibs.filter(({ x, y }) => x % 2 === 1).take(14) );
 console.log(fibs.take(14).filter(({ x, y }) => x % 2 === 1) );
 ~~~
 
+#### prime number
+
+~~~ ts
+const naturals = Stream.iterate(2, x => x + 1) ;
+console.log(naturals.take(8)); // [2, 3, 4, 5, 6, 7, 8, 9]
+const primes = Stream.unfold(naturals, naturals => 
+    {
+        const [[h], t] = naturals.took(1) ;
+        return { bloom: h, iter: t.filter(x => x % h != 0) }
+    } ) ;
+
+console.log(primes.take(20)); // [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71]
+~~~
+
+or better: 
+
+~~~ ts
+const primes = Stream.unfold
+(
+    Stream.iterate(2, x => x + 1) , 
+    naturals => 
+    {
+        const [[h], t] = naturals.took(1) ;
+        return { bloom: h, iter: t.filter(x => x < h * h || x % h != 0) } ;
+    } , 
+) ;
+
+console.log(primes.take(20)); // [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71]
+~~~
+
+changed `t.filter(x => x % h != 0)` to `t.filter(x => x < h * h || x % h != 0)` .
+
+or primes in fibonacci: 
+
+~~~ ts
+const primesfibo = Stream.unfold
+(
+    Stream.iterate([0, 1], ([a, b]) => [b, a + b]).map(([x]) => x).dropUntil(x => !(x < 2)) ,
+    fibonacci => 
+    {
+        const [[h], t] = fibonacci.took(1) ;
+        return { bloom: h, iter: t.filter(x => x < h * h || x % h != 0) } ;
+    } , 
+) ;
+
+console.log(primesfibo.take(12)); // [3, 5, 8, 13, 34, 89, 233, 1597, 4181, 28657, 514229, 1346269]
+~~~
+
 #### more
 
 ~~~ ts
 const fibonacci = fp.Stream.iterate([0, 1], ([a, b]) => [b, a + b]).map(([x]) => x) ;
-console.log(fibonacci.take(16)); // [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610] 
+
+console.log(fibonacci.take(16)); // [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610]
+console.log(fibonacci.drop(10).take(6)); // [55, 89, 144, 233, 377, 610]
 
 const fibacc_scan = fibonacci.scan((acc, x) => acc + x) ;
 console.log(fibacc_scan.take(10)); // [0, 1, 2, 4, 7, 12, 20, 33, 54, 88]
@@ -206,12 +256,15 @@ console.log(fibb.take(10)); // [777, 0, 1, 1, 2, 3, 5, 8, 13, 21]
 
 const fibh = fibonacci.follow(88).follow(99) ;
 console.log(fibh.take(10)); // [99, 88, 0, 1, 1, 2, 3, 5, 8, 13]
+console.log(fibh.drop(4).take(10)); // [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
 
 const fibw = fibonacci.window(3,2) ;
 console.log(fibw.take(5)); // [[0, 1, 1], [1, 2, 3], [3, 5, 8], [8, 13, 21], [21, 34, 55]]
+console.log(fibw.drop(2).take(3)); // [[3, 5, 8], [8, 13, 21], [21, 34, 55]]
 
 const fibz = fibonacci.zip(fibacc_scan) ;
 console.log(fibz.take(7)); // [[0, 0], [1, 1], [1, 2], [2, 4], [3, 7], [5, 12], [8, 20]]
+console.log(fibz.drop(5).take(2)); // [[5, 12], [8, 20]]
 ~~~
 
 ### `fp.TailCall`
@@ -220,6 +273,7 @@ console.log(fibz.take(7)); // [[0, 0], [1, 1], [1, 2], [2, 4], [3, 7], [5, 12], 
 
 ~~~ ts
 const factorial = 
+
 (n: number): number =>
 {
     const iter = 
